@@ -263,31 +263,17 @@ async def classify(request: ClassificationRequest):
         # raw_output close to 0 = fresh (low stale probability)
         # raw_output close to 1 = stale (high stale probability)
         
-        # BUT - if everything is showing as fresh, the logic might be inverted!
-        # Let's try BOTH interpretations and log both to debug
+        # Based on logs: raw_output LOW (0.28-0.40) = fresh, raw_output HIGH (0.60+) = stale
+        # This confirms Interpretation 1: raw_output = P(stale)
+        # So: raw_output < 0.5 = fresh, raw_output >= 0.5 = stale
         
-        # Interpretation 1: raw_output = P(stale)
-        stale_prob_v1 = raw_output
-        fresh_prob_v1 = 1.0 - raw_output
-        is_fresh_v1 = raw_output < 0.5
-        
-        # Interpretation 2: raw_output = P(fresh) (inverted)
-        fresh_prob_v2 = raw_output
-        stale_prob_v2 = 1.0 - raw_output
-        is_fresh_v2 = raw_output > 0.5
-        
-        # For now, let's try INVERTED logic since everything is showing as fresh
-        # This suggests the model might be outputting P(fresh) instead of P(stale)
-        stale_prob = stale_prob_v2  # 1 - raw_output
-        fresh_prob = fresh_prob_v2   # raw_output
-        is_fresh = is_fresh_v2       # raw_output > 0.5
+        stale_prob = raw_output
+        fresh_prob = 1.0 - raw_output
+        is_fresh = raw_output < 0.5
         confidence = max(fresh_prob, stale_prob)
         
-        # Debug logging - show BOTH interpretations
-        print(f"[CLASSIFY] raw_output={raw_output:.4f}")
-        print(f"  Interpretation 1 (raw=P(stale)): stale_prob={stale_prob_v1:.4f}, fresh_prob={fresh_prob_v1:.4f}, is_fresh={is_fresh_v1}")
-        print(f"  Interpretation 2 (raw=P(fresh)): stale_prob={stale_prob_v2:.4f}, fresh_prob={fresh_prob_v2:.4f}, is_fresh={is_fresh_v2}")
-        print(f"  Using Interpretation 2 (INVERTED) - is_fresh={is_fresh}, confidence={confidence:.4f}")
+        # Debug logging
+        print(f"[CLASSIFY] raw_output={raw_output:.4f}, stale_prob={stale_prob:.4f}, fresh_prob={fresh_prob:.4f}, is_fresh={is_fresh}, confidence={confidence:.4f}")
         
         # If the model is outputting values very close to 0.5, it might be untrained
         if abs(raw_output - 0.5) < 0.1:
