@@ -46,60 +46,78 @@ def load_model():
         model_path = os.getenv("MODEL_PATH", "best_model.h5")
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model file not found at {model_path}")
+        
+        print(f"Attempting to load model from {model_path}...")
+        
+        # First try: Normal load
         try:
-            # Try loading normally first
             model = keras.models.load_model(model_path, compile=False)
-            print(f"Model loaded from {model_path}")
+            print(f"Model loaded successfully from {model_path}")
         except Exception as e:
-            # If batch_shape error, try loading with custom_objects to ignore it
-            if 'batch_shape' in str(e).lower():
-                print(f"batch_shape compatibility issue detected, trying workaround...")
+            error_msg = str(e).lower()
+            print(f"Normal load failed: {e}")
+            
+            # If batch_shape error, use workaround
+            if 'batch_shape' in error_msg:
+                print("Detected batch_shape issue, applying workaround...")
                 try:
-                    # Create a custom InputLayer that ignores batch_shape
-                    from tensorflow.keras.layers import InputLayer
-                    def custom_input_layer(*args, **kwargs):
-                        # Remove batch_shape if present
-                        kwargs.pop('batch_shape', None)
-                        return InputLayer(*args, **kwargs)
-                    
-                    # Try loading with custom objects
                     import h5py
+                    import json
+                    from tensorflow.keras.models import model_from_json
+                    
+                    # Open the HDF5 file
                     with h5py.File(model_path, 'r') as f:
-                        # Load weights and architecture separately
-                        from tensorflow.keras.models import model_from_json
-                        model_config = f.attrs.get('model_config')
-                        if model_config:
-                            import json
-                            config = json.loads(model_config.decode('utf-8'))
-                            # Fix InputLayer configs
-                            def fix_layer_config(layer):
-                                if isinstance(layer, dict):
-                                    if layer.get('class_name') == 'InputLayer':
-                                        layer.get('config', {}).pop('batch_shape', None)
-                                    if 'layers' in layer:
-                                        for sublayer in layer['layers']:
-                                            fix_layer_config(sublayer)
-                            fix_layer_config(config)
-                            model = model_from_json(json.dumps(config))
-                            model.load_weights(model_path, by_name=True)
-                            print(f"Model loaded with batch_shape workaround")
+                        # Get model config
+                        if 'model_config' in f.attrs:
+                            model_config_str = f.attrs['model_config']
+                            if isinstance(model_config_str, bytes):
+                                model_config_str = model_config_str.decode('utf-8')
+                            
+                            # Parse and fix config
+                            config = json.loads(model_config_str)
+                            
+                            # Recursively remove batch_shape from InputLayer configs
+                            def fix_config(obj):
+                                if isinstance(obj, dict):
+                                    if obj.get('class_name') == 'InputLayer':
+                                        config_dict = obj.get('config', {})
+                                        if 'batch_shape' in config_dict:
+                                            print(f"Removing batch_shape from InputLayer")
+                                            del config_dict['batch_shape']
+                                    # Recursively fix nested structures
+                                    for key, value in obj.items():
+                                        fix_config(value)
+                                elif isinstance(obj, list):
+                                    for item in obj:
+                                        fix_config(item)
+                            
+                            fix_config(config)
+                            
+                            # Recreate model from fixed config
+                            fixed_config_str = json.dumps(config)
+                            model = model_from_json(fixed_config_str)
+                            
+                            # Load weights
+                            model.load_weights(model_path, by_name=True, skip_mismatch=True)
+                            print("Model loaded successfully with batch_shape workaround")
                         else:
-                            raise e
+                            raise Exception("No model_config found in HDF5 file")
                 except Exception as e2:
                     print(f"Workaround failed: {e2}")
-                    raise FileNotFoundError(f"Failed to load model: {e}")
+                    raise FileNotFoundError(f"Failed to load model even with workaround: {e2}")
             else:
                 raise FileNotFoundError(f"Failed to load model: {e}")
         
-        # Recompile for inference (optional but good practice)
+        # Compile model for inference
         try:
             model.compile(
                 optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
                 loss="binary_crossentropy",
                 metrics=["accuracy"]
             )
-        except:
-            pass  # Model might already be compiled
+            print("Model compiled successfully")
+        except Exception as e:
+            print(f"Warning: Could not compile model (may already be compiled): {e}")
         
     return model
 
