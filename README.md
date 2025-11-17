@@ -1,4 +1,4 @@
-Fresh vs. Stale Fruit Classifier
+
 
 This project uses a deep learning model (MobileNetV2) to classify images of fruits and vegetables as either 'fresh' or 'stale'.
 
@@ -44,23 +44,6 @@ Unzip the files.
 
 Place all the training images (the 18 folders like freshapples, rottenapples, etc.) into a single directory:
 data/raw/dataset/Train
-
-Your project structure should look like this before you run any scripts:
-
-fresh-stale-classifier/
-├── data/
-│   └── raw/
-│       └── dataset/
-│           └── Train/
-│               ├── freshapples/
-│               ├── fresbanana/
-│               ├── rottenapples/
-│               └── ... (all 18 folders)
-├── src/
-│   ├── train.py
-│   └── ...
-└── requirements.txt
-
 
 4. Run the Pipeline
 
