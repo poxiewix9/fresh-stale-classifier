@@ -6,8 +6,8 @@ pydantic==2.5.0
 python-multipart==0.0.6
 
 # Model dependencies (from your repo)
-# Using TensorFlow 2.11.0 which definitely supports batch_shape
-tensorflow==2.11.0
+# Match training version
+tensorflow==2.12.0
 numpy==1.24.3
 pillow==10.1.0
 setuptools>=65.0.0

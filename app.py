@@ -10,6 +10,9 @@ from PIL import Image
 import io
 import requests
 import tensorflow as tf
+# Suppress warnings about batch_shape deprecation
+import warnings
+warnings.filterwarnings('ignore', category=DeprecationWarning)
 from tensorflow import keras
 import os
 from typing import Optional
@@ -44,18 +47,60 @@ def load_model():
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model file not found at {model_path}")
         try:
-            # Load model - TensorFlow 2.13 should handle batch_shape correctly
+            # Try loading normally first
             model = keras.models.load_model(model_path, compile=False)
-            # Recompile for inference
+            print(f"Model loaded from {model_path}")
+        except Exception as e:
+            # If batch_shape error, try loading with custom_objects to ignore it
+            if 'batch_shape' in str(e).lower():
+                print(f"batch_shape compatibility issue detected, trying workaround...")
+                try:
+                    # Create a custom InputLayer that ignores batch_shape
+                    from tensorflow.keras.layers import InputLayer
+                    def custom_input_layer(*args, **kwargs):
+                        # Remove batch_shape if present
+                        kwargs.pop('batch_shape', None)
+                        return InputLayer(*args, **kwargs)
+                    
+                    # Try loading with custom objects
+                    import h5py
+                    with h5py.File(model_path, 'r') as f:
+                        # Load weights and architecture separately
+                        from tensorflow.keras.models import model_from_json
+                        model_config = f.attrs.get('model_config')
+                        if model_config:
+                            import json
+                            config = json.loads(model_config.decode('utf-8'))
+                            # Fix InputLayer configs
+                            def fix_layer_config(layer):
+                                if isinstance(layer, dict):
+                                    if layer.get('class_name') == 'InputLayer':
+                                        layer.get('config', {}).pop('batch_shape', None)
+                                    if 'layers' in layer:
+                                        for sublayer in layer['layers']:
+                                            fix_layer_config(sublayer)
+                            fix_layer_config(config)
+                            model = model_from_json(json.dumps(config))
+                            model.load_weights(model_path, by_name=True)
+                            print(f"Model loaded with batch_shape workaround")
+                        else:
+                            raise e
+                except Exception as e2:
+                    print(f"Workaround failed: {e2}")
+                    raise FileNotFoundError(f"Failed to load model: {e}")
+            else:
+                raise FileNotFoundError(f"Failed to load model: {e}")
+        
+        # Recompile for inference (optional but good practice)
+        try:
             model.compile(
                 optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
                 loss="binary_crossentropy",
                 metrics=["accuracy"]
             )
-            print(f"Model loaded from {model_path}")
-        except Exception as e:
-            print(f"Error loading model: {e}")
-            raise FileNotFoundError(f"Failed to load model: {e}")
+        except:
+            pass  # Model might already be compiled
+        
     return model
 
 def preprocess_image(image_url: str, target_size=(224, 224)):
