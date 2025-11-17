@@ -44,9 +44,9 @@ def load_model():
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model file not found at {model_path}")
         try:
-            # Try loading with custom_objects to handle compatibility issues
+            # Load model - TensorFlow 2.13 should handle batch_shape correctly
             model = keras.models.load_model(model_path, compile=False)
-            # Recompile if needed
+            # Recompile for inference
             model.compile(
                 optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
                 loss="binary_crossentropy",
@@ -54,18 +54,8 @@ def load_model():
             )
             print(f"Model loaded from {model_path}")
         except Exception as e:
-            # If that fails, try with safe_mode=False for older models
-            print(f"First load attempt failed: {e}, trying alternative method...")
-            try:
-                model = keras.models.load_model(model_path, compile=False, safe_mode=False)
-                model.compile(
-                    optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
-                    loss="binary_crossentropy",
-                    metrics=["accuracy"]
-                )
-                print(f"Model loaded from {model_path} (alternative method)")
-            except Exception as e2:
-                raise FileNotFoundError(f"Failed to load model: {e2}")
+            print(f"Error loading model: {e}")
+            raise FileNotFoundError(f"Failed to load model: {e}")
     return model
 
 def preprocess_image(image_url: str, target_size=(224, 224)):

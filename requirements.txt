@@ -7,7 +7,8 @@ python-multipart==0.0.6
 
 # Model dependencies (from your repo)
 # Using compatible versions for Python 3.11
-tensorflow>=2.12.0,<2.16.0
+# Pin to 2.13.0 to match model compatibility
+tensorflow==2.13.0
 numpy==1.24.3
 pillow==10.1.0
 setuptools>=65.0.0
