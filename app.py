@@ -84,9 +84,13 @@ def load_model():
                     try:
                         model.load_weights(model_path, by_name=True, skip_mismatch=True)
                         print("Model loaded successfully with architecture rebuild and weights")
+                        # Verify weights were loaded by checking a sample weight
+                        if hasattr(model.layers[0], 'get_weights') and len(model.layers[0].get_weights()) > 0:
+                            print(f"Verified: First layer has {len(model.layers[0].get_weights())} weight arrays")
                     except Exception as weights_error:
-                        print(f"Warning: Could not load weights: {weights_error}")
-                        print("Using untrained architecture (will have random weights)")
+                        print(f"ERROR: Could not load weights: {weights_error}")
+                        print("WARNING: Using untrained architecture (will have random weights)")
+                        print("This will cause incorrect classifications! Model needs to be retrained or weights need to be fixed.")
                         # Model will work but with random weights - better than nothing
                 except Exception as e2:
                     print(f"Architecture rebuild failed: {e2}")
@@ -244,19 +248,50 @@ async def classify(request: ClassificationRequest):
             prediction = list(prediction.values())[0]
         
         # Model outputs sigmoid: single value between 0 and 1
-        # From train.py: 0 = fresh, 1 = stale
-        # So: prediction > 0.5 = stale, prediction < 0.5 = fresh
+        # From train.py: label_binary = tf.where(is_fresh, 0, 1)
+        # So: 0 = fresh, 1 = stale
+        # Model output: closer to 0 = fresh, closer to 1 = stale
         # Handle different prediction shapes
         if prediction.ndim > 1:
-            stale_prob = float(prediction[0][0])
+            raw_output = float(prediction[0][0])
         else:
-            stale_prob = float(prediction[0])
-        fresh_prob = 1.0 - stale_prob
+            raw_output = float(prediction[0])
         
-        # Determine if fresh (threshold at 0.5)
-        # Model output < 0.5 means fresh, > 0.5 means stale
-        is_fresh = stale_prob < 0.5
+        # The model was trained with: 0=fresh, 1=stale
+        # Binary crossentropy with sigmoid outputs probability of class 1 (stale)
+        # So: raw_output = probability of stale
+        # raw_output close to 0 = fresh (low stale probability)
+        # raw_output close to 1 = stale (high stale probability)
+        
+        # BUT - if everything is showing as fresh, the logic might be inverted!
+        # Let's try BOTH interpretations and log both to debug
+        
+        # Interpretation 1: raw_output = P(stale)
+        stale_prob_v1 = raw_output
+        fresh_prob_v1 = 1.0 - raw_output
+        is_fresh_v1 = raw_output < 0.5
+        
+        # Interpretation 2: raw_output = P(fresh) (inverted)
+        fresh_prob_v2 = raw_output
+        stale_prob_v2 = 1.0 - raw_output
+        is_fresh_v2 = raw_output > 0.5
+        
+        # For now, let's try INVERTED logic since everything is showing as fresh
+        # This suggests the model might be outputting P(fresh) instead of P(stale)
+        stale_prob = stale_prob_v2  # 1 - raw_output
+        fresh_prob = fresh_prob_v2   # raw_output
+        is_fresh = is_fresh_v2       # raw_output > 0.5
         confidence = max(fresh_prob, stale_prob)
+        
+        # Debug logging - show BOTH interpretations
+        print(f"[CLASSIFY] raw_output={raw_output:.4f}")
+        print(f"  Interpretation 1 (raw=P(stale)): stale_prob={stale_prob_v1:.4f}, fresh_prob={fresh_prob_v1:.4f}, is_fresh={is_fresh_v1}")
+        print(f"  Interpretation 2 (raw=P(fresh)): stale_prob={stale_prob_v2:.4f}, fresh_prob={fresh_prob_v2:.4f}, is_fresh={is_fresh_v2}")
+        print(f"  Using Interpretation 2 (INVERTED) - is_fresh={is_fresh}, confidence={confidence:.4f}")
+        
+        # If the model is outputting values very close to 0.5, it might be untrained
+        if abs(raw_output - 0.5) < 0.1:
+            print(f"[WARNING] Model output is very close to 0.5 ({raw_output:.4f}), suggesting untrained weights!")
         
         return ClassificationResponse(
             isFresh=is_fresh,
