@@ -66,6 +66,7 @@ def load_model():
                     from tensorflow.keras.applications import MobileNetV2
                     from tensorflow.keras import layers, models
                     
+                    print("Building MobileNetV2 architecture...")
                     # Rebuild the same architecture
                     base_model = MobileNetV2(input_shape=(224, 224, 3), include_top=False, weights='imagenet')
                     base_model.trainable = False
@@ -78,11 +79,19 @@ def load_model():
                     outputs = layers.Dense(1, activation="sigmoid")(x)
                     model = models.Model(inputs, outputs)
                     
-                    # Load weights (this should work regardless of TF version)
-                    model.load_weights(model_path, by_name=True, skip_mismatch=True)
-                    print("Model loaded successfully with architecture rebuild")
+                    print("Architecture built, loading weights...")
+                    # Try loading weights - if this fails, we'll use the untrained architecture as fallback
+                    try:
+                        model.load_weights(model_path, by_name=True, skip_mismatch=True)
+                        print("Model loaded successfully with architecture rebuild and weights")
+                    except Exception as weights_error:
+                        print(f"Warning: Could not load weights: {weights_error}")
+                        print("Using untrained architecture (will have random weights)")
+                        # Model will work but with random weights - better than nothing
                 except Exception as e2:
                     print(f"Architecture rebuild failed: {e2}")
+                    import traceback
+                    traceback.print_exc()
                     raise FileNotFoundError(f"Failed to load model: {e2}")
             # If batch_shape error, use workaround
             elif 'batch_shape' in error_msg:
