@@ -1,67 +1,96 @@
+# Fresh vs Stale Classifier
+
+[![Python Version](https://img.shields.io/badge/python-3.10+-blue)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+A deep learning project using **MobileNetV2** to classify images of fruits and vegetables as either **fresh** or **stale**. This repository includes Python scripts to process data, train the model, and evaluate its performance.
+
+---
+
+## Table of Contents
+
+- [Final Results](#final-results)  
+- [Project Structure](#project-structure)  
+- [Getting Started](#getting-started)  
+- [Running the Pipeline](#running-the-pipeline)  
+- [License](#license)  
+
+---
+
+## Final Results
+
+After **8 epochs** of training, the model achieved:
+
+- **Test Accuracy:** 94.15%  
+- **Test Loss:** 0.146  
+
+Training history: *(You can add `logs/training_history.png` to the repository to visualize training progress.)*
+
+---
+
+## Project Structure
+fresh-stale-classifier/
+├─ data/
+│ └─ raw/dataset/Train/ # Place your raw dataset here
+├─ logs/ # Training logs and history
+├─ models/
+│ └─ fresh_stale_model/ # Saved model files
+├─ src/
+│ ├─ prepare_data.py # Prepares and splits dataset
+│ ├─ train.py # Trains the model
+│ └─ evaluate.py # Evaluates the trained model
+├─ requirements.txt
+└─ README.md
 
 
-This project uses a deep learning model (MobileNetV2) to classify images of fruits and vegetables as either 'fresh' or 'stale'.
+---
 
-This repository contains the Python source code to process the data, train the model, and evaluate its performance.
+## Getting Started
 
-Final Results
+### Prerequisites
 
-After training for 8 epochs, the model achieved the following on the test set:
+- Python **3.10+**  
+- Access to the dataset (see below)  
 
-Test Accuracy: 94.15%
+### Setup
 
-Test Loss: 0.146
+Clone the repository and create a virtual environment:
 
-Here is the training history:
-(You can add the logs/training_history.png image to your GitHub repo manually after uploading to show your results)
-
-How to Run This Project
-
-1. Prerequisites
-
-Python 3.10+
-
-Access to the dataset (see below)
-
-2. Setup
-
-First, clone this repository and create your virtual environment:
-
-git clone [https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git](https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git)
+```bash
+git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
 cd fresh-stale-classifier
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+Prepare the Dataset
 
+This project does not include the dataset due to size constraints.
 
-3. Get the Data
-
-This project does not include the data due to its large size. You must download it yourself.
-
-Download the dataset (e.g., from Kaggle or your source).
+Download the dataset (e.g., from Kaggle).
 
 Unzip the files.
 
-Place all the training images (the 18 folders like freshapples, rottenapples, etc.) into a single directory:
+Organize the training images (e.g., freshapples, rottenapples, etc.) into:
+
 data/raw/dataset/Train
+```
 
-4. Run the Pipeline
+Running the Pipeline
+Step 1: Prepare and Split the Data
 
-Once your data is in the correct folder, follow these steps in your terminal:
-
-Step 1: Prepare and split the data
-This script will automatically create the train/, val/, and test/ splits.
-
+This script will automatically create train, validation, and test splits:
 python src/prepare_data.py
 
+Step 2: Train the Model
 
-Step 2: Train the model
-This will train the model, save the best one as best_model.h5, and create the models/fresh_stale_model directory.
-
+Train the model and save the best version as best_model.h5:
 python src/train.py
 
+Step 3: Evaluate the Model
 
-Step 3: Evaluate the model
-This will load the saved model and print the final classification report.
-
+Load the saved model and print the final classification report:
 python src/evaluate.py
+
+License
+This project is licensed under the MIT License.
+
