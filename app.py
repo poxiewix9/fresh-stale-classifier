@@ -49,52 +49,41 @@ def load_model():
         
         print(f"Attempting to load model from {model_path}...")
         
-        # First try: Normal load with custom objects for compatibility
+        # Try loading - handle various compatibility issues
         try:
-            # Handle TrueDivide and other newer layer names
-            custom_objects = {}
-            try:
-                from tensorflow.keras.layers import Lambda
-                # Map newer layer names to compatible ones
-                custom_objects['TrueDivide'] = Lambda(lambda x: x)  # Placeholder
-            except:
-                pass
-            
-            model = keras.models.load_model(model_path, compile=False, custom_objects=custom_objects)
+            # First try: Normal load
+            model = keras.models.load_model(model_path, compile=False)
             print(f"Model loaded successfully from {model_path}")
         except Exception as e:
             error_msg = str(e).lower()
             print(f"Normal load failed: {e}")
             
-            # Try loading with safe_mode=False for newer models
-            if 'truedivide' in error_msg or 'unknown layer' in error_msg:
-                print("Detected layer compatibility issue, trying alternative load...")
+            # If it's a function/serialization error, rebuild architecture and load weights
+            if 'function' in error_msg or 'truedivide' in error_msg or 'unknown layer' in error_msg:
+                print("Detected serialization/compatibility issue, rebuilding architecture...")
                 try:
-                    # Load weights separately if architecture fails
-                    import h5py
-                    with h5py.File(model_path, 'r') as f:
-                        # Try to rebuild model architecture manually
-                        from tensorflow.keras.applications import MobileNetV2
-                        from tensorflow.keras import layers, models
-                        
-                        # Rebuild the same architecture
-                        base_model = MobileNetV2(input_shape=(224, 224, 3), include_top=False, weights='imagenet')
-                        base_model.trainable = False
-                        
-                        inputs = layers.Input(shape=(224, 224, 3))
-                        x = tf.keras.applications.mobilenet_v2.preprocess_input(inputs)
-                        x = base_model(x, training=False)
-                        x = layers.GlobalAveragePooling2D()(x)
-                        x = layers.Dropout(0.3)(x)
-                        outputs = layers.Dense(1, activation="sigmoid")(x)
-                        model = models.Model(inputs, outputs)
-                        
-                        # Load weights
-                        model.load_weights(model_path, by_name=True, skip_mismatch=True)
-                        print("Model loaded with architecture rebuild workaround")
+                    # Rebuild the exact same architecture as training
+                    from tensorflow.keras.applications import MobileNetV2
+                    from tensorflow.keras import layers, models
+                    
+                    # Rebuild the same architecture
+                    base_model = MobileNetV2(input_shape=(224, 224, 3), include_top=False, weights='imagenet')
+                    base_model.trainable = False
+                    
+                    inputs = layers.Input(shape=(224, 224, 3))
+                    x = tf.keras.applications.mobilenet_v2.preprocess_input(inputs)
+                    x = base_model(x, training=False)
+                    x = layers.GlobalAveragePooling2D()(x)
+                    x = layers.Dropout(0.3)(x)
+                    outputs = layers.Dense(1, activation="sigmoid")(x)
+                    model = models.Model(inputs, outputs)
+                    
+                    # Load weights (this should work regardless of TF version)
+                    model.load_weights(model_path, by_name=True, skip_mismatch=True)
+                    print("Model loaded successfully with architecture rebuild")
                 except Exception as e2:
-                    print(f"Workaround failed: {e2}")
-                    raise FileNotFoundError(f"Failed to load model: {e}")
+                    print(f"Architecture rebuild failed: {e2}")
+                    raise FileNotFoundError(f"Failed to load model: {e2}")
             # If batch_shape error, use workaround
             elif 'batch_shape' in error_msg:
                 print("Detected batch_shape issue, applying workaround...")
